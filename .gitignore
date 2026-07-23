@@ -1,0 +1,21 @@
+.venv/
+.dev/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.log
+*.zip
+*.img
+*.img.xz
+*.sha256
+
+# Secrets et données locales
+config.toml
+.env
+.env.*
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.backup-*
+logo.png
