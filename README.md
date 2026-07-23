@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/assets/cryptogotchi-logo.png" alt="CryptoGotchi logo" width="180">
+</p>  
+
 # CryptoGotchi by mikpoly
 
 
