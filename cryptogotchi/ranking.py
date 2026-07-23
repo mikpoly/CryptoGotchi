@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import os
 import time
 import uuid
 from typing import Any
@@ -16,15 +17,10 @@ from .db import Database
 
 
 class RankingClient:
-    """Opt-in community ranking client.
-
-    The client is deliberately inactive until both the checkbox is enabled and
-    an HTTPS endpoint is configured. It sends companion progress only; no price
-    history, alert contents, IP address, wallet data, API keys or Wi-Fi details
-    are included in the payload.
-    """
+    """Opt-in CryptoGotchi.world ranking client with per-device registration."""
 
     PROTOCOL_VERSION = 1
+    DEFAULT_API_BASE = os.getenv("CRYPTOGOTCHI_RANKING_API", "https://cryptogotchi.world/api/v1").rstrip("/")
 
     def __init__(self, config: ConfigManager, db: Database):
         self.config_manager = config
@@ -39,15 +35,26 @@ class RankingClient:
         self.db.set_state("ranking:device_id", value)
         return value
 
-    @staticmethod
-    def _validate_endpoint(url: str) -> str:
-        url = str(url or "").strip()
-        parsed = urlparse(url)
-        if parsed.scheme != "https" or not parsed.netloc:
+    def _api_base(self, section: dict[str, Any]) -> str:
+        configured = str(section.get("endpoint_url") or "").strip()
+        if not configured:
+            return self.DEFAULT_API_BASE
+        parsed = urlparse(configured)
+        if parsed.scheme != "https" or not parsed.netloc or parsed.username or parsed.password:
             raise ValueError("The ranking endpoint must be a valid HTTPS URL.")
-        if parsed.username or parsed.password:
-            raise ValueError("Credentials are not allowed inside the ranking URL.")
-        return url
+        value = configured.rstrip("/")
+        for suffix in ("/sync", "/register", "/cryptogotchi/ranking"):
+            if value.endswith(suffix):
+                value = value[: -len(suffix)]
+                break
+        return value
+
+    def _token(self, section: dict[str, Any]) -> str:
+        stored = self.db.get_state("ranking:device_token", "")
+        if isinstance(stored, str) and stored:
+            return stored
+        legacy = str(section.get("api_token") or "").strip()
+        return legacy
 
     def build_payload(self, status: dict[str, Any], config: dict[str, Any] | None = None) -> dict[str, Any]:
         config = config or self.config_manager.load()
@@ -77,15 +84,38 @@ class RankingClient:
     def _signature(body: bytes, token: str) -> str:
         return hmac.new(token.encode("utf-8"), body, hashlib.sha256).hexdigest()
 
+    def _register(self, payload: dict[str, Any], section: dict[str, Any]) -> str:
+        base = self._api_base(section)
+        registration = {
+            key: payload[key]
+            for key in ("protocol_version", "device_id", "public_name", "app_version", "country_code")
+            if key in payload
+        }
+        response = self.session.post(
+            f"{base}/register",
+            json=registration,
+            headers={"Accept": "application/json", "User-Agent": f"CryptoGotchi-by-mikpoly/{__version__}"},
+            timeout=20,
+        )
+        response.raise_for_status()
+        data = response.json()
+        token = str(data.get("device_token") or "")
+        if len(token) < 32:
+            raise RuntimeError("The ranking server did not return a valid device token.")
+        self.db.set_state("ranking:device_token", token)
+        self.db.set_state("ranking:public_id", str(data.get("device_public_id") or ""))
+        return token
+
     def status(self, current_status: dict[str, Any] | None = None) -> dict[str, Any]:
         cfg = self.config_manager.load()
         section = cfg.get("ranking", {})
-        endpoint = str(section.get("endpoint_url") or "").strip()
         return {
             "enabled": bool(section.get("enabled")),
-            "configured": bool(endpoint),
-            "endpoint": endpoint,
+            "configured": True,
+            "endpoint": self._api_base(section),
             "device_id": self.device_id(),
+            "public_id": str(self.db.get_state("ranking:public_id", "") or ""),
+            "registered": bool(self._token(section)),
             "last_sync_ts": int(self.db.get_state("ranking:last_sync_ts", 0) or 0),
             "last_attempt_ts": int(self.db.get_state("ranking:last_attempt_ts", 0) or 0),
             "last_error": str(self.db.get_state("ranking:last_error", "") or ""),
@@ -95,20 +125,15 @@ class RankingClient:
     def should_sync(self, now: int | None = None) -> bool:
         cfg = self.config_manager.load()
         section = cfg.get("ranking", {})
-        if not bool(section.get("enabled")) or not str(section.get("endpoint_url") or "").strip():
+        if not bool(section.get("enabled")):
             return False
         now = int(now or time.time())
         interval = max(1, min(168, int(section.get("sync_interval_hours", 6) or 6))) * 3600
         last_success = int(self.db.get_state("ranking:last_sync_ts", 0) or 0)
         last_attempt = int(self.db.get_state("ranking:last_attempt_ts", 0) or 0)
         last_error = str(self.db.get_state("ranking:last_error", "") or "")
-        # A failed or unreachable future community server must not be contacted
-        # at every market refresh. Retry failures after 15 minutes (or the
-        # configured interval when it is shorter), while successful syncs keep
-        # the normal user-selected interval.
         if last_error and last_attempt:
-            retry_after = min(interval, 15 * 60)
-            return now - last_attempt >= retry_after
+            return now - last_attempt >= min(interval, 15 * 60)
         return now - last_success >= interval and now - last_attempt >= 60
 
     def sync(self, status: dict[str, Any], force: bool = False) -> dict[str, Any]:
@@ -121,26 +146,18 @@ class RankingClient:
         attempt_ts = int(time.time())
         self.db.set_state("ranking:last_attempt_ts", attempt_ts)
         try:
-            endpoint = self._validate_endpoint(str(section.get("endpoint_url") or ""))
-        except ValueError as exc:
-            error = str(exc)[:240]
-            self.db.set_state("ranking:last_error", error)
-            return {"ok": False, "error": error}
-
-        payload = self.build_payload(status, cfg)
-        body = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
-        headers = {
-            "Accept": "application/json",
-            "Content-Type": "application/json",
-            "User-Agent": f"CryptoGotchi-by-mikpoly/{__version__}",
-            "X-CryptoGotchi-Protocol": str(self.PROTOCOL_VERSION),
-        }
-        token = str(section.get("api_token") or "").strip()
-        if token:
-            headers["Authorization"] = f"Bearer {token}"
-            headers["X-CryptoGotchi-Signature"] = self._signature(body, token)
-        try:
-            response = self.session.post(endpoint, data=body, headers=headers, timeout=20)
+            payload = self.build_payload(status, cfg)
+            token = self._token(section) or self._register(payload, section)
+            body = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+            headers = {
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {token}",
+                "X-CryptoGotchi-Protocol": str(self.PROTOCOL_VERSION),
+                "X-CryptoGotchi-Signature": self._signature(body, token),
+                "User-Agent": f"CryptoGotchi-by-mikpoly/{__version__}",
+            }
+            response = self.session.post(f"{self._api_base(section)}/sync", data=body, headers=headers, timeout=20)
             response.raise_for_status()
             data = response.json() if response.content else {}
             now = int(time.time())
