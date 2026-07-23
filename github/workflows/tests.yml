@@ -1,0 +1,35 @@
+name: tests
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          python -m pip install pytest
+      - name: Python syntax
+        run: python -m compileall -q cryptogotchi scripts/migrate-config.py
+      - name: Shell syntax
+        run: |
+          bash -n scripts/install.sh
+          bash -n scripts/cryptogotchi-bluetooth-helper
+          bash -n scripts/cryptogotchi-connectivity-watch
+          bash -n scripts/diagnostics.sh
+      - name: Build Python wheel
+        run: python -m pip wheel . --no-deps --no-build-isolation -w dist
+      - name: Tests
+        run: pytest -q
