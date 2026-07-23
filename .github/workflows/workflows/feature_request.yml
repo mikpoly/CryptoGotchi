@@ -1,0 +1,26 @@
+name: Feature request
+about: Suggest a community improvement
+title: "[Feature] "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+    validations:
+      required: true
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Project boundaries
+      options:
+        - label: This proposal does not require wallet seed phrases or private keys.
+          required: true
+        - label: This proposal preserves explicit opt-in for public posts and shared ranking data.
+          required: true
