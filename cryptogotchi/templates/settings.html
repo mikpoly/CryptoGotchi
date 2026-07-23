@@ -42,6 +42,72 @@
   {% if bluetooth_diagnostics %}<h3>{{ t('settings.bluetooth_diagnostics') }}</h3><pre class="diagnostic-report">{{ bluetooth_diagnostics }}</pre>{% endif %}
 </section>
 
+<section class="panel ranking-panel">
+  <div class="section-heading compact">
+    <div>
+      <h2>{{ t('settings.ranking') }}</h2>
+      <p>
+        {% if language == 'fr' %}
+          Participation communautaire facultative. Seuls la progression du compagnon, son nom public et le pays facultatif sont partagés. Aucune donnée réseau, clé API, wallet ou information privée n’est envoyée.
+        {% else %}
+          Optional community participation. Only companion progress, the public name and the optional country are shared. No network data, API key, wallet or private information is sent.
+        {% endif %}
+      </p>
+    </div>
+    <span class="status-badge {% if cfg.ranking.enabled %}live{% endif %}">
+      {% if language == 'fr' %}{{ 'ACTIF' if cfg.ranking.enabled else 'INACTIF' }}{% else %}{{ 'ACTIVE' if cfg.ranking.enabled else 'INACTIVE' }}{% endif %}
+    </span>
+  </div>
+
+  {% if not cfg.ranking.endpoint_url %}
+  <div class="warning">
+    {% if language == 'fr' %}
+      Le serveur communautaire n’est pas encore configuré. Le bouton enregistre ton choix dès maintenant ; la synchronisation commencera automatiquement lorsque le serveur officiel sera disponible.
+    {% else %}
+      The community server is not configured yet. The button saves your choice now; synchronization will begin automatically when the official server becomes available.
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <form method="post" action="{{ url_for('ranking_toggle') }}" class="grid-form top-gap">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="state" value="{{ 'off' if cfg.ranking.enabled else 'on' }}">
+
+    <label>
+      {{ t('settings.ranking_name') }}
+      <input name="ranking_public_name" maxlength="40" value="{{ cfg.ranking.public_name }}" placeholder="{{ cfg.main.name }}">
+    </label>
+
+    <label class="check">
+      <input name="ranking_share_country" type="checkbox" {% if cfg.ranking.share_country %}checked{% endif %}>
+      {{ t('settings.ranking_country_share') }}
+    </label>
+
+    <label>
+      {{ t('settings.ranking_country') }}
+      <input name="ranking_country_code" maxlength="2" value="{{ cfg.ranking.country_code }}" placeholder="BE" pattern="[A-Za-z]{2}">
+    </label>
+
+    <div class="full ranking-status">
+      <span>
+        {{ t('settings.ranking_last_sync') }}:
+        {% if ranking_status.last_sync_ts %}<span data-ts="{{ ranking_status.last_sync_ts }}"></span>{% else %}—{% endif %}
+      </span>
+      {% if ranking_status.last_error %}<span class="negative">{{ ranking_status.last_error }}</span>{% endif %}
+    </div>
+
+    <div class="full">
+      <button type="submit" class="{% if cfg.ranking.enabled %}danger{% endif %}">
+        {% if language == 'fr' %}
+          {{ 'Désactiver le classement' if cfg.ranking.enabled else 'Activer le classement' }}
+        {% else %}
+          {{ 'Disable community ranking' if cfg.ranking.enabled else 'Enable community ranking' }}
+        {% endif %}
+      </button>
+    </div>
+  </form>
+</section>
+
 <form method="post" class="settings-stack"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 <section class="panel grid-form"><h2 class="full">{{ t('settings.general') }}</h2><label>{{ t('settings.name') }}<input name="name" value="{{ cfg.main.name }}"></label><label>{{ t('settings.language') }}<select name="language"><option value="en" {% if cfg.main.language=='en' %}selected{% endif %}>English</option><option value="fr" {% if cfg.main.language=='fr' %}selected{% endif %}>Français</option></select></label><label>{{ t('settings.currency') }}<input name="fiat" value="{{ cfg.main.fiat }}"></label><label>{{ t('settings.refresh') }}<input name="refresh_seconds" type="number" min="30" value="{{ cfg.main.refresh_seconds }}"></label><label>{{ t('settings.history') }}<input name="history_hours" type="number" min="24" value="{{ cfg.main.history_hours }}"></label><label>{{ t('settings.timezone') }}<input name="timezone" value="{{ cfg.main.timezone }}"></label><label>{{ t('settings.max_active_assets') }}<input name="max_active_assets" type="number" min="1" max="100" value="{{ cfg.main.max_active_assets }}"></label><p class="full button-guide">{{ t('settings.max_active_assets_help') }}</p></section>
 
