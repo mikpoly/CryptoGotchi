@@ -1,0 +1,350 @@
+#!/usr/bin/env bash
+# Privileged Bluetooth/PAN and guarded Wi-Fi helper for CryptoGotchi v0.7.3.
+# Bluetooth actions never alter Wi-Fi or SSH. Wi-Fi can only be disabled when
+# a working Bluetooth PAN route is already available.
+set -Eeuo pipefail
+
+ACTION=${1:-}
+ADDRESS=${2:-}
+MAC_RE='^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$'
+WINDOW=/run/cryptogotchi-bluetooth-pairing.json
+
+case "$ACTION" in
+  prepare|power-on|power-off|power-status|wifi-on|wifi-off|wifi-status) ;;
+  pair|connect|disconnect|remove|status|diagnose)
+    [[ "$ADDRESS" =~ $MAC_RE ]] || { echo "Invalid Bluetooth address" >&2; exit 65; }
+    ADDRESS=${ADDRESS^^}
+    ;;
+  *)
+    echo "Usage: cryptogotchi-bluetooth-helper prepare|power-on|power-off|power-status|wifi-on|wifi-off|wifi-status|ACTION AA:BB:CC:DD:EE:FF" >&2
+    exit 64
+    ;;
+esac
+
+export LC_ALL=C LANG=C
+
+power_on() {
+  systemctl enable --now bluetooth.service >/dev/null 2>&1 || true
+  systemctl enable --now cryptogotchi-bluetooth-agent.service >/dev/null 2>&1 || true
+  rfkill unblock bluetooth >/dev/null 2>&1 || true
+  for _ in $(seq 1 20); do
+    if bluetoothctl show >/dev/null 2>&1; then
+      bluetoothctl power on >/dev/null 2>&1 || true
+      bluetoothctl pairable on >/dev/null 2>&1 || true
+      bluetoothctl system-alias CryptoGotchi >/dev/null 2>&1 || true
+      echo "Bluetooth enabled"
+      return 0
+    fi
+    sleep 0.25
+  done
+  echo "Bluetooth controller did not become ready" >&2
+  exit 69
+}
+
+power_off() {
+  bluetoothctl discoverable off >/dev/null 2>&1 || true
+  bluetoothctl pairable off >/dev/null 2>&1 || true
+  bluetoothctl power off >/dev/null 2>&1 || true
+  rfkill block bluetooth >/dev/null 2>&1 || true
+  systemctl stop cryptogotchi-bluetooth-agent.service >/dev/null 2>&1 || true
+  echo "Bluetooth disabled; Wi-Fi was not modified"
+}
+
+power_status() {
+  local powered='no' blocked='unknown'
+  if bluetoothctl show 2>/dev/null | grep -Eq '^[[:space:]]*Powered:[[:space:]]+yes$'; then
+    powered='yes'
+  fi
+  if command -v rfkill >/dev/null 2>&1; then
+    blocked=$(rfkill list bluetooth 2>/dev/null | awk '/Soft blocked:/ {print $3; exit}')
+  fi
+  printf 'powered=%s blocked=%s\n' "$powered" "${blocked:-unknown}"
+}
+
+wifi_on() {
+  rfkill unblock wifi >/dev/null 2>&1 || true
+  nmcli networking on >/dev/null 2>&1 || true
+  nmcli radio wifi on >/dev/null
+  echo "Wi-Fi enabled"
+}
+
+wifi_status() {
+  local state='unknown'
+  state=$(nmcli radio wifi 2>/dev/null || true)
+  printf 'wifi=%s\n' "${state:-unknown}"
+}
+
+active_pan_device_any() {
+  nmcli -t -f NAME,TYPE,DEVICE connection show --active 2>/dev/null \
+    | awk -F: '$2 == "bluetooth" && $3 != "" {print $3; exit}'
+}
+
+pan_has_ipv4() {
+  local device=${1:-}
+  [[ -n "$device" ]] || return 1
+  nmcli -g IP4.ADDRESS device show "$device" 2>/dev/null | grep -Eq '^[0-9]'
+}
+
+pan_has_internet() {
+  local device=${1:-}
+  pan_has_ipv4 "$device" || return 1
+  ping -I "$device" -c 1 -W 3 1.1.1.1 >/dev/null 2>&1
+}
+
+wifi_off() {
+  local device unit
+  device=$(active_pan_device_any)
+  if [[ -z "$device" ]] || ! pan_has_internet "$device"; then
+    echo "Wi-Fi was kept enabled: a working Bluetooth PAN connection is required before Wi-Fi can be disabled." >&2
+    exit 72
+  fi
+  # Delay the radio change very slightly so the web request can return. The
+  # connectivity watchdog re-enables Wi-Fi if the PAN link disappears.
+  unit="cryptogotchi-wifi-off-$(date +%s)"
+  systemd-run --quiet --collect --unit="$unit" --on-active=3s /usr/bin/nmcli radio wifi off >/dev/null
+  echo "Wi-Fi disable scheduled in 3 seconds; Bluetooth PAN is active on $device"
+}
+
+case "$ACTION" in
+  power-on) power_on; exit 0 ;;
+  power-off) power_off; exit 0 ;;
+  power-status) power_status; exit 0 ;;
+  wifi-on) wifi_on; exit 0 ;;
+  wifi-off) wifi_off; exit 0 ;;
+  wifi-status) wifi_status; exit 0 ;;
+esac
+
+wait_for_bluetoothd() {
+  systemctl enable --now bluetooth.service >/dev/null 2>&1 || true
+  systemctl enable --now NetworkManager.service >/dev/null 2>&1 || true
+  systemctl enable --now cryptogotchi-bluetooth-agent.service >/dev/null 2>&1 || true
+  rfkill unblock bluetooth >/dev/null 2>&1 || true
+  nmcli networking on >/dev/null 2>&1 || true
+  for _ in $(seq 1 30); do
+    if systemctl is-active --quiet bluetooth.service \
+      && systemctl is-active --quiet NetworkManager.service \
+      && systemctl is-active --quiet cryptogotchi-bluetooth-agent.service \
+      && bluetoothctl show >/dev/null 2>&1; then
+      bluetoothctl power on >/dev/null 2>&1 || true
+      bluetoothctl system-alias CryptoGotchi >/dev/null 2>&1 || true
+      return 0
+    fi
+    sleep 0.5
+  done
+  echo "Bluetooth or NetworkManager is not ready. Run: sudo systemctl status bluetooth NetworkManager cryptogotchi-bluetooth-agent" >&2
+  exit 69
+}
+
+open_window() {
+  local allowed=$1 seconds=${2:-120}
+  local expires=$(( $(date +%s) + seconds ))
+  printf '{"address":"%s","expires":%s}\n' "$allowed" "$expires" >"$WINDOW"
+  chmod 0600 "$WINDOW"
+  bluetoothctl pairable on >/dev/null
+  bluetoothctl discoverable-timeout "$seconds" >/dev/null 2>&1 || true
+  bluetoothctl discoverable on >/dev/null
+}
+
+is_paired() {
+  bluetoothctl info "$ADDRESS" 2>/dev/null | grep -Eq '^[[:space:]]*Paired:[[:space:]]+yes$'
+}
+
+pair_device() {
+  if is_paired; then
+    bluetoothctl trust "$ADDRESS" >/dev/null 2>&1 || true
+    return 0
+  fi
+  open_window "$ADDRESS" 90
+  bluetoothctl --timeout 8 scan on >/dev/null 2>&1 || true
+  set +e
+  local output rc
+  output=$(bluetoothctl --timeout 70 pair "$ADDRESS" 2>&1)
+  rc=$?
+  set -e
+  printf '%s\n' "$output"
+  if [[ $rc -ne 0 ]] || ! is_paired; then
+    echo "Pairing failed. Keep the phone unlocked with Bluetooth settings open, accept the matching code, then retry." >&2
+    exit 70
+  fi
+  bluetoothctl trust "$ADDRESS" >/dev/null 2>&1 || true
+}
+
+profile_name() {
+  local compact=${ADDRESS//:/}
+  printf 'CryptoGotchi Bluetooth %s' "${compact: -6}"
+}
+
+has_nap_service() {
+  bluetoothctl info "$ADDRESS" 2>/dev/null | grep -Eqi 'Network Access Point|00001116-0000-1000-8000-00805f9b34fb'
+}
+
+nm_error_details() {
+  local profile=$1
+  echo "---- Bluetooth device ----" >&2
+  bluetoothctl info "$ADDRESS" 2>/dev/null | grep -E 'Name:|Alias:|Paired:|Trusted:|Connected:|UUID:' >&2 || true
+  echo "---- NetworkManager profile ----" >&2
+  nmcli -f connection.id,connection.type,connection.autoconnect,connection.autoconnect-retries,bluetooth.bdaddr,bluetooth.type,ipv4.method,ipv4.route-metric,ipv6.method connection show "$profile" 2>/dev/null >&2 || true
+  echo "---- NetworkManager recent log ----" >&2
+  journalctl -u NetworkManager --since '-3 minutes' --no-pager -n 35 2>/dev/null \
+    | grep -Ei 'bluetooth|bluez|bnep|panu|dhcp|failed|error|unavailable|timeout' >&2 || true
+}
+
+ensure_pan_profile() {
+  local profile=$1 existing_type=''
+  existing_type=$(nmcli -g connection.type connection show "$profile" 2>/dev/null || true)
+  if [[ -n "$existing_type" && "$existing_type" != "bluetooth" ]]; then
+    nmcli connection delete id "$profile" >/dev/null 2>&1 || true
+    existing_type=''
+  fi
+  if [[ -z "$existing_type" ]]; then
+    nmcli connection add \
+      type bluetooth \
+      con-name "$profile" \
+      bluetooth.type panu \
+      bluetooth.bdaddr "$ADDRESS" \
+      ipv4.method auto \
+      ipv4.may-fail no \
+      ipv4.dhcp-timeout 45 \
+      ipv4.route-metric 750 \
+      ipv6.method disabled \
+      connection.autoconnect yes \
+      connection.autoconnect-priority 10 \
+      connection.autoconnect-retries 0 \
+      connection.metered yes >/dev/null
+  else
+    nmcli connection modify "$profile" \
+      bluetooth.type panu \
+      bluetooth.bdaddr "$ADDRESS" \
+      ipv4.method auto \
+      ipv4.may-fail no \
+      ipv4.dhcp-timeout 45 \
+      ipv4.never-default no \
+      ipv4.route-metric 750 \
+      ipv6.method disabled \
+      connection.autoconnect yes \
+      connection.autoconnect-priority 10 \
+      connection.autoconnect-retries 0 \
+      connection.metered yes >/dev/null
+  fi
+}
+
+active_pan_device() {
+  local profile=$1
+  nmcli -t -f NAME,TYPE,DEVICE connection show --active 2>/dev/null \
+    | awk -F: -v wanted="$profile" '$1 == wanted && $2 == "bluetooth" {print $3; exit}'
+}
+
+verify_pan() {
+  local profile=$1 attempts=${2:-20} device=''
+  for _ in $(seq 1 "$attempts"); do
+    device=$(active_pan_device "$profile")
+    if [[ -n "$device" ]] && pan_has_ipv4 "$device"; then
+      echo "Bluetooth PAN connected: profile=$profile device=$device"
+      nmcli -g IP4.ADDRESS,IP4.GATEWAY device show "$device" 2>/dev/null || true
+      return 0
+    fi
+    sleep 1
+  done
+  return 1
+}
+
+connect_pan() {
+  pair_device
+  local profile output rc attempt
+  profile=$(profile_name)
+  bluetoothctl trust "$ADDRESS" >/dev/null 2>&1 || true
+  ensure_pan_profile "$profile"
+
+  # Never destroy a working bnep interface. This is the exact path used when
+  # the phone PAN is already active and the user presses Connect again.
+  if verify_pan "$profile" 1; then
+    exit 0
+  fi
+
+  for attempt in 1 2; do
+    nmcli networking on >/dev/null 2>&1 || true
+    bluetoothctl trust "$ADDRESS" >/dev/null 2>&1 || true
+
+    set +e
+    output=$(nmcli --wait 60 connection up id "$profile" 2>&1)
+    rc=$?
+    set -e
+    printf 'PAN attempt %s/2: %s\n' "$attempt" "$output"
+    if [[ $rc -eq 0 ]] && verify_pan "$profile" 12; then
+      exit 0
+    fi
+    # Only clear a failed NetworkManager activation. Do not call
+    # bluetoothctl disconnect here: that was the race which removed bnep0.
+    nmcli connection down id "$profile" >/dev/null 2>&1 || true
+    sleep $((attempt * 2))
+  done
+
+  nm_error_details "$profile"
+  if ! has_nap_service; then
+    echo "Phone is paired, but its Bluetooth PAN/NAP service is not visible. Enable Bluetooth tethering (Android) or Personal Hotspot with Bluetooth enabled (iPhone), keep that screen open, then retry." >&2
+  else
+    echo "The phone exposes Bluetooth PAN, but NetworkManager could not obtain an IPv4 connection. Toggle phone tethering off/on, keep Wi-Fi or mobile data active on the phone, then retry. The NetworkManager details above contain the exact failure reason." >&2
+  fi
+  exit 71
+}
+
+diagnose_pan() {
+  local profile device=''
+  profile=$(profile_name)
+  device=$(active_pan_device "$profile")
+  echo "CryptoGotchi Bluetooth PAN diagnostics"
+  echo "Profile: $profile"
+  bluetoothctl show 2>/dev/null | grep -E 'Controller|Powered:|Discoverable:|Pairable:' || true
+  bluetoothctl info "$ADDRESS" 2>/dev/null || true
+  echo "--- NetworkManager ---"
+  nmcli general status 2>/dev/null || true
+  nmcli -f NAME,TYPE,DEVICE,STATE connection show --active 2>/dev/null || true
+  nmcli -f connection.id,connection.type,connection.autoconnect,connection.autoconnect-retries,bluetooth.bdaddr,bluetooth.type,ipv4.method,ipv4.route-metric,ipv6.method connection show "$profile" 2>/dev/null || true
+  echo "--- Internet route ---"
+  ip -4 route get 1.1.1.1 2>/dev/null || true
+  ip -4 route show default 2>/dev/null || true
+  if [[ -n "$device" ]]; then
+    echo "--- PAN interface $device ---"
+    ip -br address show dev "$device" 2>/dev/null || true
+    nmcli -g IP4.ADDRESS,IP4.GATEWAY device show "$device" 2>/dev/null || true
+    if pan_has_internet "$device"; then
+      echo "PAN internet test: OK"
+    else
+      echo "PAN internet test: FAILED"
+    fi
+  else
+    echo "PAN interface: not active"
+  fi
+  echo "--- Recent NetworkManager Bluetooth log ---"
+  journalctl -u NetworkManager --since '-5 minutes' --no-pager -n 60 2>/dev/null \
+    | grep -Ei 'bluetooth|bluez|bnep|panu|dhcp|failed|error|unavailable|timeout' || true
+}
+
+wait_for_bluetoothd
+case "$ACTION" in
+  prepare)
+    open_window '*' 120
+    echo "CryptoGotchi is visible and pairable for 120 seconds. Select CryptoGotchi in the phone Bluetooth settings and accept the matching code."
+    ;;
+  pair) pair_device ;;
+  connect) connect_pan ;;
+  disconnect)
+    PROFILE=$(profile_name)
+    nmcli connection modify "$PROFILE" connection.autoconnect no >/dev/null 2>&1 || true
+    nmcli connection down id "$PROFILE" >/dev/null 2>&1 || true
+    bluetoothctl disconnect "$ADDRESS" >/dev/null 2>&1 || true
+    ;;
+  remove)
+    PROFILE=$(profile_name)
+    nmcli connection down id "$PROFILE" >/dev/null 2>&1 || true
+    nmcli connection delete id "$PROFILE" >/dev/null 2>&1 || true
+    bluetoothctl disconnect "$ADDRESS" >/dev/null 2>&1 || true
+    bluetoothctl remove "$ADDRESS"
+    ;;
+  status)
+    bluetoothctl info "$ADDRESS"
+    PROFILE=$(profile_name)
+    nmcli -f GENERAL,IP4,IP6 connection show "$PROFILE" 2>/dev/null || true
+    ;;
+  diagnose) diagnose_pan ;;
+esac

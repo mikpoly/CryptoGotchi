@@ -1,0 +1,65 @@
+{% extends "base.html" %}{% block content %}
+<div class="page-intro"><div class="eyebrow">TECHNICAL SENTINEL V2</div><h1>{{ t('analysis.title') }}</h1><p>{{ t('analysis.subtitle') }}</p></div>
+
+<section class="panel analysis-panel">
+  <div class="section-heading compact"><div><h2>{{ t('analysis.selection_title') }}</h2><p>{{ t('analysis.selection_help') }}</p></div><span class="selection-counter"><b id="analysis-selected-count">{{ selected_coin_ids|length }}</b> / {{ cfg.companion.max_analysis_assets }}</span></div>
+  <form method="post" action="{{ url_for('analysis_run') }}" id="companion-analysis-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="asset-selector" data-max="{{ cfg.companion.max_analysis_assets }}">
+      {% for coin in available_coins %}
+      <label class="asset-choice {% if coin.id in selected_coin_ids %}selected{% endif %}">
+        <input type="checkbox" name="coin_ids" value="{{ coin.id }}" {% if coin.id in selected_coin_ids %}checked{% endif %}>
+        <span><b>{{ coin.symbol }}</b><small>{{ coin.name }}</small></span>
+        <i>{% if coin.metrics and coin.metrics['15m'] is not none %}{{ '%+.2f%%'|format(coin.metrics['15m']) }}{% else %}—{% endif %}</i>
+      </label>
+      {% else %}<div class="empty-state compact"><p>{{ t('companion.no_coin') }}</p></div>{% endfor %}
+    </div>
+    <div class="analysis-actions"><button class="interaction ask" type="submit"><span>◎</span><b>{{ t('analysis.run') }}</b><small>15 min · 1 h · 4 h</small></button></div>
+  </form>
+</section>
+
+<div class="analysis-report-grid">
+{% for card in analysis_cards %}
+<section class="panel analysis-report verdict-{{ card.verdict }}">
+  <header class="analysis-report-head">
+    <div><div class="eyebrow">{{ card.symbol }}</div><h2>{{ card.name }}</h2><p class="analysis-price">{{ card.price|round(8) }}{% if card.fiat %} {{ card.fiat }}{% endif %}</p></div>
+    <div class="verdict-badge verdict-{{ card.verdict }}"><span>{{ t('analysis.global_bias') }}</span><b>{{ card.verdict_label }}</b><small>{{ card.verdict_confidence }}%</small></div>
+  </header>
+
+  <div class="companion-opinion verdict-{{ card.verdict }}">
+    <span aria-hidden="true">{% if card.verdict == 'buy' %}↗{% elif card.verdict == 'sell' %}↘{% else %}◌{% endif %}</span>
+    <div><b>{{ card.verdict_phrase }}</b><small>{{ card.disclaimer or t('analysis.disclaimer') }}</small></div>
+  </div>
+
+  <div class="timeframe-table-wrap">
+  <table class="timeframe-table">
+    <thead><tr><th>{{ t('analysis.timeframe') }}</th><th>{{ t('analysis.structure') }}</th><th>{{ t('analysis.trend') }}</th><th>{{ t('analysis.change') }}</th><th>{{ t('analysis.support') }}</th><th>{{ t('analysis.resistance') }}</th><th>{{ t('analysis.opinion') }}</th></tr></thead>
+    <tbody>
+    {% for tf in ['15m','1h','4h'] %}{% set frame = card.timeframes[tf] %}
+      <tr class="timeframe-row bias-{{ frame.bias }}">
+        <td><strong>{{ tf }}</strong></td>
+        {% if frame.ready %}
+        <td>{{ frame.regime }}</td>
+        <td>{{ frame.trend }}</td>
+        <td>{% if frame.change is not none %}{{ '%+.2f%%'|format(frame.change) }}{% else %}—{% endif %}</td>
+        <td>{{ frame.support_text }}</td>
+        <td>{{ frame.resistance_text }}</td>
+        <td><span class="bias-chip bias-{{ frame.bias }}">{{ frame.bias_label }}</span></td>
+        {% else %}
+        <td colspan="6" class="analysis-not-ready">{{ t('analysis.data_wait') }}</td>
+        {% endif %}
+      </tr>
+      {% if frame.ready %}<tr class="timeframe-comment"><td></td><td colspan="6">{{ frame.bias_phrase }}</td></tr>{% endif %}
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+
+  {% if card.session and card.session.summary %}<div class="analysis-session"><b>{{ 'Séance' if language == 'fr' else 'Session' }}</b><span>{{ card.session.summary }}</span></div>{% endif %}
+  <footer class="analysis-freshness">{{ 'Données' if language == 'fr' else 'Data' }}: {{ card.freshness }} · {{ card.last_sample_age_seconds }}s</footer>
+</section>
+{% else %}
+<section class="panel empty-state"><span>◎</span><p>{{ t('analysis.empty') }}</p></section>
+{% endfor %}
+</div>
+{% endblock %}

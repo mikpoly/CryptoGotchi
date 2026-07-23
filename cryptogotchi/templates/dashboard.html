@@ -1,0 +1,56 @@
+{% extends "base.html" %}{% block content %}
+{% set c=status.companion or {} %}
+<section id="hero" class="hero command-deck state-{{ status.state }}">
+  <div class="companion-stage" aria-hidden="true">
+    <div class="companion-halo"></div>
+    {% set avatar_state = status.state %}{% set avatar_accessory = c.accessory or 'none' %}{% include '_avatar.html' %}
+    <div class="signal-rings"><i></i><i></i><i></i></div>
+  </div>
+  <div class="hero-copy">
+    <div class="eyebrow">{{ t('dashboard.engine') }} · <span id="brain-engine">{{ c.engine or 'micro-brain-v2' }}</span></div>
+    <div class="hero-state-line"><span id="state" class="state-label">{{ status.state|upper }}</span><span class="level-badge">L{{ c.level or 1 }} · <b id="brain-xp">{{ c.xp or 0 }}</b> XP</span></div>
+    <h1 id="message">{{ status.message }}</h1>
+    <p id="brain-thought" class="thought">{{ c.thought or '' }}</p>
+    <div class="hero-meta">
+      <span><i class="live-dot {% if not status.online %}offline{% endif %}"></i><b id="market-online">{{ t('dashboard.online') if status.online else t('dashboard.offline') }}</b></span>
+      <span id="last-update">{{ t('dashboard.last_update') }}: {% if status.last_update %}<span data-ts="{{ status.last_update }}"></span>{% else %}—{% endif %}</span>
+    </div>
+  </div>
+  <div class="hero-actions">
+    <button id="force-refresh" type="button"><span>↻</span>{{ t('dashboard.refresh') }}</button>
+    <form method="post" action="{{ url_for('toggle_notifications') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button id="notification-toggle" class="secondary">{{ t('dashboard.resume') if status.notifications_paused else t('dashboard.pause') }}</button></form>
+    <button id="alert-sound-toggle" type="button" class="secondary">🔔 {{ t('dashboard.enable_sound') }}</button>
+    <a class="button-like ghost" href="{{ url_for('companion') }}">{{ t('nav.companion') }} →</a>
+  </div>
+</section>
+
+<section class="telemetry-grid" aria-label="Telemetry">
+  <article><span>{{ t('dashboard.network') }}</span><strong id="network-state">{{ status.network.economy.connection.type if status.network and status.network.economy else '—' }}</strong><small id="economy-state">{{ t('dashboard.active') if status.network and status.network.economy.active else t('dashboard.normal') }}</small></article>
+  <article><span>{{ t('dashboard.data') }}</span><strong id="data-usage">—</strong><small>{{ t('dashboard.today') }}</small></article>
+  <article><span>CPU</span><strong id="cpu-temp">—</strong><small>Pi Zero 2 W</small></article>
+  <article><span>{{ t('dashboard.observations') }}</span><strong id="brain-observations">{{ c.observations or 0 }}</strong><small>Micro-Brain</small></article>
+</section>
+
+<section class="mini-vitals glass-panel">
+  <div><span>{{ t('companion.energy') }}</span><div class="bar"><i id="vital-energy" style="width:{{ c.energy or 0 }}%"></i></div><b id="vital-energy-value">{{ c.energy or 0 }}%</b></div>
+  <div><span>{{ t('companion.stress') }}</span><div class="bar danger-bar"><i id="vital-stress" style="width:{{ c.stress or 0 }}%"></i></div><b id="vital-stress-value">{{ c.stress or 0 }}%</b></div>
+  <div><span>{{ t('companion.bond') }}</span><div class="bar bond-bar"><i id="vital-bond" style="width:{{ c.bond or 0 }}%"></i></div><b id="vital-bond-value">{{ c.bond or 0 }}%</b></div>
+</section>
+
+<div class="section-heading"><div><div class="eyebrow">{{ t('dashboard.watchlist') }}</div><h2>{{ t('dashboard.tracked') }}</h2><p>{{ 'Fresh streams are isolated by currency and provider.' if language=='en' else 'Chaque flux est isolé par devise et fournisseur.' }} · {{ status.coins|length }}/{{ status.asset_limit or 50 }}</p></div><a href="{{ url_for('coins') }}">{{ t('dashboard.manage') }} →</a></div><div class="market-controls"><input id="market-filter" type="search" placeholder="{{ t('dashboard.filter_assets') }}"><div id="market-pagination" class="pagination"></div></div>
+<section id="coin-cards" class="market-grid">
+{% for coin in status.coins[:20] %}
+<article class="market-card" data-coin-id="{{ coin.id }}">
+  <header><div><div class="asset-line"><h3>{{ coin.symbol }}</h3><span class="asset-badge kind-{{ coin.asset_kind|default('crypto') }}">{{ coin.asset_kind|default('crypto')|replace('_',' ') }}</span></div><p>{{ coin.name }}</p></div><span class="change-pill neutral">—</span></header>
+  <div class="price-line"><strong>{{ coin.price }}</strong><span>{{ coin.fiat|default('')|upper }}</span></div>
+  <div class="chart-placeholder">{{ t('dashboard.history') }}…</div>
+</article>
+{% else %}<div class="empty-state"><span>◌</span><p>{{ t('dashboard.waiting') }}</p></div>{% endfor %}
+</section>
+
+<div class="section-heading"><div><div class="eyebrow">{{ t('dashboard.history') }}</div><h2>{{ t('dashboard.latest_alerts') }}</h2><p>{{ 'Only fresh, comparable market samples can create alerts.' if language=='en' else 'Seuls des relevés frais et comparables peuvent créer une alerte.' }}</p></div></div>
+<section id="alerts" class="alert-feed">
+{% for alert in alerts %}<article class="alert-item severity-{{ alert.severity }}"><div class="alert-marker"></div><div class="alert-copy"><div><span class="badge {{ alert.severity }}">{{ alert.severity }}</span><time data-ts="{{ alert.ts }}"></time></div><p>{{ alert.message }}</p></div></article>{% else %}<div class="empty-state compact"><span>✓</span><p>{{ t('dashboard.none') }}</p></div>{% endfor %}
+</section>
+<script>window.CRYPTOGOTCHI_DASHBOARD=true;</script>
+{% endblock %}

@@ -1,0 +1,35 @@
+{% extends "base.html" %}{% block content %}
+<div class="page-intro"><div class="eyebrow">MICRO-BRAIN V2</div><h1>{{ t('companion.title') }}</h1><p>{{ t('companion.subtitle') }}</p></div>
+<section class="companion-command state-{{ status.state }}">
+  <div class="companion-stage large" aria-hidden="true">
+    <div class="companion-halo"></div>
+    {% set avatar_state = status.state %}{% set avatar_accessory = companion.accessory or 'none' %}{% include '_avatar.html' %}
+    <div class="mood-chip">{{ companion.mood or status.state }}</div>
+  </div>
+  <div class="companion-story">
+    <div class="eyebrow">{{ t('companion.latest_message') }}</div>
+    <h2>{{ status.message }}</h2>
+    {% if companion.thought %}<p class="thought">{{ companion.thought }}</p>{% endif %}
+    <div class="brain-signature"><div><span>{{ t('companion.ai_engine') }}</span><b>{{ companion.engine or 'micro-brain-v2' }}</b></div>{% if companion.model %}<small>{{ companion.model }}</small>{% endif %}{% if companion.ai_error %}<small class="negative">{{ companion.ai_error }}</small>{% endif %}</div>
+    <div class="companion-analysis-link"><a class="button-like" href="{{ url_for('analysis') }}">◎ {{ t('analysis.open') }}</a></div>
+  </div>
+  <div class="level-core"><div><strong>{{ companion.level or 1 }}</strong><span>{{ t('companion.level') }}</span></div><small>{{ companion.xp or 0 }} / {{ companion.next_level_xp or 100 }} XP</small><div class="xp-track"><i style="width:{{ ((companion.xp or 0) / (companion.next_level_xp or 100) * 100)|round|int }}%"></i></div></div>
+</section>
+
+<section class="panel interaction-panel"><div class="section-heading compact"><div><h2>{{ t('companion.actions') }}</h2><p>{{ t('companion.selected_coin') }}: <b>{% for coin in selected_coins %}{{ coin.symbol }}{% if not loop.last %}, {% endif %}{% else %}—{% endfor %}</b></p></div></div><div class="interaction-grid three-actions">
+<form method="post" action="{{ url_for('companion_interact', action='pet') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="interaction pet"><span>♥</span><b>{{ t('companion.pet') }}</b><small>{{ 'Build your bond' if language=='en' else 'Renforcer le lien' }}</small></button></form>
+<form method="post" action="{{ url_for('companion_interact', action='encourage') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="interaction encourage"><span>⚡</span><b>{{ t('companion.encourage') }}</b><small>{{ 'Boost confidence' if language=='en' else 'Booster la confiance' }}</small></button></form>
+<form method="post" action="{{ url_for('companion_interact', action='rest') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="interaction rest"><span>☾</span><b>{{ t('companion.rest') }}</b><small>{{ 'Reduce stress' if language=='en' else 'Réduire le stress' }}</small></button></form>
+</div></section>
+
+<div class="companion-grid">
+<section class="panel"><div class="panel-heading"><h2>{{ t('companion.vitals') }}</h2><span class="pulse-label">LIVE</span></div>
+{% for key,label in [('energy',t('companion.energy')),('stress',t('companion.stress')),('confidence',t('companion.confidence')),('curiosity',t('companion.curiosity')),('bond',t('companion.bond'))] %}<div class="vital-row"><span>{{ label }}</span><div class="bar {% if key=='stress' %}danger-bar{% elif key=='bond' %}bond-bar{% endif %}"><i style="width:{{ companion[key] or 0 }}%"></i></div><b>{{ companion[key] or 0 }}%</b></div>{% endfor %}
+</section>
+<section class="panel"><div class="panel-heading"><h2>{{ t('companion.memory') }}</h2><span class="memory-chip">SQLite</span></div><div class="memory-grid"><div><b>{{ companion.observations or 0 }}</b><span>{{ t('companion.observations') }}</span></div><div><b>{{ companion.age_days or 0 }}</b><span>{{ t('companion.age') }} ({{ t('companion.days') }})</span></div><div><b>{{ companion.active_streak or 0 }}</b><span>{{ t('companion.streak') }}</span></div><div><b>{{ companion.interactions or 0 }}</b><span>{{ t('companion.interactions') }}</span></div><div><b>{{ companion.achievement_count or 0 }}</b><span>{{ t('companion.achievements') }}</span></div><div><b>{{ companion.accessory or 'none' }}</b><span>{{ t('companion.accessory') }}</span></div></div></section>
+</div>
+
+<section class="panel"><div class="section-heading compact"><div><h2>{{ t('companion.achievements') }}</h2></div></div><div class="achievement-grid">{% for achievement in achievements %}<article class="achievement {% if achievement.unlocked %}unlocked{% else %}locked{% endif %}"><div class="achievement-icon">{{ achievement.icon }}</div><div><b>{{ achievement.title }}</b><p>{{ achievement.description }}</p><small>{{ t('companion.unlocked') if achievement.unlocked else t('companion.locked') }}</small></div></article>{% endfor %}</div></section>
+
+<section class="panel"><div class="section-heading compact"><div><h2>{{ t('companion.journal') }}</h2><p>{{ 'A factual memory of the day, not a prediction.' if language=='en' else 'Une mémoire factuelle de la journée, pas une prédiction.' }}</p></div><form method="post" action="{{ url_for('companion_journal') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button>{{ t('companion.create_journal') }}</button></form></div><div class="journal-list">{% for entry in journals %}<article><time>{{ entry.day }}</time><p>{{ entry.text }}</p></article>{% else %}<div class="empty-state compact"><span>✦</span><p>{{ t('companion.no_journal') }}</p></div>{% endfor %}</div></section>
+{% endblock %}

@@ -1,0 +1,206 @@
+[main]
+name = "CryptoGotchi"
+language = "en"
+fiat = "eur"
+refresh_seconds = 60
+history_hours = 72
+timezone = "Europe/Brussels"
+web_host = "0.0.0.0"
+web_port = 8080
+cooldown_minutes = 30
+device_profile = "pi_zero_2w"
+config_revision = 12
+max_active_assets = 50
+logo_path = "logo.png"
+
+[security]
+username = "admin"
+password_hash = ""
+secret_key = ""
+allow_public_posts = false
+max_public_posts_per_hour = 3
+
+[provider]
+name = "coingecko"
+base_url = "https://api.coingecko.com/api/v3"
+api_key = ""
+timeout_seconds = 15
+chart_hours = 24
+gold_api_base_url = "https://api.gold-api.com"
+freshness_seconds = 600
+fx_api_base_url = "https://api.frankfurter.dev/v2"
+max_stream_jump_percent = 8.0
+
+[connectivity]
+bluetooth_enabled = true
+data_saver_mode = "auto"
+auto_on_bluetooth = true
+auto_on_metered = true
+economy_refresh_seconds = 300
+history_backfill_in_economy = false
+history_backfill_per_cycle = 2
+public_posts_in_economy = false
+external_ai_in_economy = false
+
+[personality]
+profile = "sage"
+show_thoughts = true
+humor = 25
+energy = 55
+prudence = 80
+technical_level = 55
+talk_frequency = 55
+optimism = 50
+verbosity = 45
+custom_identity = "A loyal market companion that stays factual, curious and calm."
+animations = true
+accessory = "auto"
+
+[ai]
+mode = "local"
+provider = "ollama"
+endpoint = "http://192.168.1.10:11434"
+model = "gemma3:4b"
+api_key = ""
+timeout_seconds = 20
+max_characters = 240
+only_for_alerts = false
+fallback_local = true
+custom_system_prompt = ""
+
+[companion]
+daily_journal = true
+journal_hour = 22
+achievement_popups = true
+interaction_cooldown_seconds = 2
+manual_message_hold_seconds = 120
+max_analysis_assets = 5
+
+[social_digest]
+enabled = false
+interval_hours = 4
+only_when_changed = true
+minimum_move_percent = 0.5
+
+[display]
+type = "waveshare_lcd_1in44"
+waveshare_model = "epd2in13_V4"
+rotation = 0
+partial_refresh = false
+brightness = 90
+dim_brightness = 18
+backlight_timeout_seconds = 0
+screen_sleep_seconds = 0
+page_cycle_seconds = 12
+alert_hold_seconds = 20
+auto_cycle = true
+spi_speed_hz = 9000000
+animation_fps = 2
+show_accessories = true
+
+[market_rules]
+enabled = true
+breadth_window_minutes = 15
+breadth_drop_percent = 3.0
+breadth_count = 3
+breadth_rise_percent = 3.0
+breadth_rise_count = 3
+cooldown_minutes = 45
+
+[notifications]
+paused = false
+
+[notifications.dashboard]
+enabled = true
+sound_volume = 65
+minimum_severity = "info"
+browser_notifications = true
+
+[notifications.telegram]
+enabled = false
+bot_token = ""
+chat_id = ""
+
+[notifications.discord]
+enabled = false
+webhook_url = ""
+
+[notifications.mastodon]
+enabled = false
+instance_url = ""
+access_token = ""
+visibility = "unlisted"
+
+[notifications.bluesky]
+enabled = false
+service_url = "https://bsky.social"
+handle = ""
+app_password = ""
+
+[notifications.webhook]
+enabled = false
+url = ""
+bearer_token = ""
+
+[ranking]
+enabled = false
+endpoint_url = ""
+public_name = ""
+api_token = ""
+sync_interval_hours = 6
+share_country = false
+country_code = ""
+
+[[coins]]
+id = "bitcoin"
+symbol = "BTC"
+name = "Bitcoin"
+enabled = true
+alerts_enabled = true
+source = "coingecko"
+asset_kind = "crypto"
+trading_mode = "24x7"
+data_note = ""
+data_note_key = ""
+include_in_market_mood = true
+drop_5m = 2.0
+rise_5m = 2.0
+drop_15m = 3.0
+rise_15m = 3.0
+drop_1h = 5.0
+rise_1h = 5.0
+drop_24h = 10.0
+rise_24h = 10.0
+volume_multiplier = 2.5
+new_high_24h = false
+new_low_24h = false
+cooldown_minutes = 30
+social_post = false
+favorite = true
+
+[[coins]]
+id = "ethereum"
+symbol = "ETH"
+name = "Ethereum"
+enabled = true
+alerts_enabled = true
+source = "coingecko"
+asset_kind = "crypto"
+trading_mode = "24x7"
+data_note = ""
+data_note_key = ""
+include_in_market_mood = true
+drop_5m = 2.0
+rise_5m = 2.0
+drop_15m = 3.0
+rise_15m = 3.0
+drop_1h = 5.0
+rise_1h = 5.0
+drop_24h = 10.0
+rise_24h = 10.0
+volume_multiplier = 2.5
+new_high_24h = false
+new_low_24h = false
+cooldown_minutes = 30
+social_post = false
+favorite = false

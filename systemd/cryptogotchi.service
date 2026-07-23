@@ -1,0 +1,25 @@
+[Unit]
+Description=CryptoGotchi by mikpoly
+After=network-online.target NetworkManager.service bluetooth.service cryptogotchi-bluetooth-agent.service
+Wants=network-online.target bluetooth.service cryptogotchi-bluetooth-agent.service
+
+[Service]
+Type=simple
+User=cryptogotchi
+Group=cryptogotchi
+SupplementaryGroups=spi gpio i2c netdev video bluetooth
+WorkingDirectory=/opt/cryptogotchi
+Environment=CRYPTOGOTCHI_CONFIG=/etc/cryptogotchi/config.toml
+Environment=CRYPTOGOTCHI_DATA_DIR=/var/lib/cryptogotchi
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/cryptogotchi/.venv/bin/python -m cryptogotchi
+Restart=on-failure
+RestartSec=10
+# Bluetooth PAN actions use a narrowly permitted root helper via sudoers.
+NoNewPrivileges=false
+PrivateTmp=true
+ProtectSystem=full
+ReadWritePaths=/etc/cryptogotchi /var/lib/cryptogotchi
+
+[Install]
+WantedBy=multi-user.target

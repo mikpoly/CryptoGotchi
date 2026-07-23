@@ -1,0 +1,13 @@
+{% extends "base.html" %}{% block content %}
+<section class="auth-card">
+<div class="auth-emblem">◉‿◉</div>
+<h1>{{ t('setup.title') }}</h1><p>{{ t('setup.text') }}</p>
+<form method="post">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<label>{{ t('setup.user') }}<input name="username" value="admin" required></label>
+<label>{{ t('setup.password') }}<input name="password" type="password" minlength="10" required></label>
+<label>{{ t('setup.confirm') }}<input name="confirm" type="password" minlength="10" required></label>
+<button>{{ t('setup.button') }}</button>
+</form>
+</section>
+{% endblock %}

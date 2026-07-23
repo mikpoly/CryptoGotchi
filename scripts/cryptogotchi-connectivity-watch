@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+# Safe connectivity watchdog for CryptoGotchi v0.7.3.
+# - keeps Wi-Fi as the preferred route (metric 600)
+# - keeps a user-enabled Bluetooth PAN as standby (metric 750)
+# - retries saved PAN profiles marked autoconnect=yes
+# - re-enables Wi-Fi if it was disabled and Bluetooth PAN disappears
+set -Eeuo pipefail
+export LC_ALL=C LANG=C
+
+log() { logger -t cryptogotchi-connectivity "$*"; }
+
+bluetooth_powered() {
+  bluetoothctl show 2>/dev/null | grep -Eq '^[[:space:]]*Powered:[[:space:]]+yes$'
+}
+
+active_wifi_device() {
+  nmcli -t -f TYPE,DEVICE connection show --active 2>/dev/null \
+    | awk -F: '$1 == "wifi" || $1 == "802-11-wireless" {if ($2 != "") {print $2; exit}}'
+}
+
+active_pan_device() {
+  nmcli -t -f TYPE,DEVICE connection show --active 2>/dev/null \
+    | awk -F: '$1 == "bluetooth" && $2 != "" {print $2; exit}'
+}
+
+has_ipv4() {
+  local device=${1:-}
+  [[ -n "$device" ]] || return 1
+  nmcli -g IP4.ADDRESS device show "$device" 2>/dev/null | grep -Eq '^[0-9]'
+}
+
+first_autoconnect_pan_profile() {
+  local name type autoconnect
+  while IFS=: read -r name type; do
+    [[ "$type" == "bluetooth" ]] || continue
+    [[ "$name" == CryptoGotchi\ Bluetooth\ * ]] || continue
+    autoconnect=$(nmcli -g connection.autoconnect connection show "$name" 2>/dev/null || true)
+    [[ "$autoconnect" == "yes" ]] && { printf '%s\n' "$name"; return 0; }
+  done < <(nmcli -t -f NAME,TYPE connection show 2>/dev/null)
+  return 1
+}
+
+last_pan_attempt=0
+while sleep 15; do
+  wifi_state=$(nmcli radio wifi 2>/dev/null || true)
+  wifi_device=$(active_wifi_device || true)
+  pan_device=$(active_pan_device || true)
+
+  # Safety net: a disabled Wi-Fi radio is allowed only while PAN really owns an
+  # IPv4 address. This prevents the Pi becoming unreachable in the car.
+  if [[ "$wifi_state" == "disabled" ]] && ! has_ipv4 "$pan_device"; then
+    rfkill unblock wifi >/dev/null 2>&1 || true
+    nmcli radio wifi on >/dev/null 2>&1 || true
+    log "Wi-Fi re-enabled because Bluetooth PAN is no longer active"
+    continue
+  fi
+
+  # If the user previously pressed Connect Internet, the profile has
+  # autoconnect=yes. Retry it calmly when the phone becomes available.
+  if [[ -z "$pan_device" ]] && bluetooth_powered; then
+    now=$(date +%s)
+    if (( now - last_pan_attempt >= 60 )); then
+      profile=$(first_autoconnect_pan_profile || true)
+      if [[ -n "$profile" ]]; then
+        last_pan_attempt=$now
+        nmcli connection modify "$profile" ipv4.route-metric 750 connection.autoconnect-retries 0 >/dev/null 2>&1 || true
+        timeout 45 nmcli --wait 35 connection up id "$profile" >/dev/null 2>&1 || true
+      fi
+    fi
+  fi
+
+  # NetworkManager chooses the lowest metric. Existing Raspberry Pi Wi-Fi
+  # profiles normally use 600; PAN profiles are fixed at 750 by the helper.
+  # No route is deleted here, so SSH and the dashboard remain stable.
+  : "$wifi_device"
+done

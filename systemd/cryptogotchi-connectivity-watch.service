@@ -1,0 +1,13 @@
+[Unit]
+Description=CryptoGotchi Wi-Fi/Bluetooth failover watchdog
+After=NetworkManager.service bluetooth.service
+Wants=NetworkManager.service bluetooth.service
+
+[Service]
+Type=simple
+ExecStart=/usr/local/sbin/cryptogotchi-connectivity-watch
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

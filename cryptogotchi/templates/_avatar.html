@@ -1,0 +1,33 @@
+<div id="web-avatar" class="cg-avatar mood-{{ avatar_state or 'calm' }} accessory-{{ avatar_accessory or 'none' }}" data-accessory="{{ avatar_accessory or 'none' }}" aria-label="CryptoGotchi companion">
+  <svg viewBox="0 0 180 190" role="img" aria-hidden="true">
+    <defs>
+      <linearGradient id="cg-head" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1d394d"/><stop offset="1" stop-color="#08131d"/></linearGradient>
+      <linearGradient id="cg-body" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#173044"/><stop offset="1" stop-color="#09141e"/></linearGradient>
+      <filter id="cg-glow"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    </defs>
+    <g class="avatar-shadow"><ellipse cx="90" cy="180" rx="54" ry="7"/></g>
+    <g class="avatar-robot">
+      <path class="antenna-stem" d="M90 24V12"/><circle class="antenna-light" cx="90" cy="8" r="6"/>
+      <rect class="ear" x="18" y="61" width="15" height="39" rx="7"/><rect class="ear" x="147" y="61" width="15" height="39" rx="7"/>
+      <rect class="head" x="29" y="31" width="122" height="94" rx="31"/>
+      <rect class="face-screen" x="40" y="43" width="100" height="69" rx="23"/>
+      <g class="eyes">
+        <ellipse class="eye eye-left" cx="69" cy="73" rx="10" ry="13"/>
+        <ellipse class="eye eye-right" cx="111" cy="73" rx="10" ry="13"/>
+      </g>
+      <path class="mouth mouth-happy" d="M72 94 Q90 108 108 94"/>
+      <path class="mouth mouth-sad" d="M73 104 Q90 90 107 104"/>
+      <path class="mouth mouth-flat" d="M75 99H105"/>
+      <path class="cheek" d="M52 94h9M119 94h9"/>
+      <rect class="body" x="50" y="122" width="80" height="45" rx="15"/>
+      <circle class="core" cx="90" cy="143" r="9"/>
+      <path class="arm" d="M51 136L30 148M129 136l21 12"/>
+      <path class="foot" d="M67 166v12h-18M113 166v12h18"/>
+    </g>
+    <g class="acc acc-glasses"><rect x="52" y="58" width="31" height="27" rx="10"/><rect x="97" y="58" width="31" height="27" rx="10"/><path d="M83 70h14"/></g>
+    <g class="acc acc-cap"><path d="M49 39Q88 8 132 38L126 50H52Z"/><path d="M117 48h28"/></g>
+    <g class="acc acc-crown"><path d="M57 39l9-21 22 16 19-22 12 26z"/><circle cx="66" cy="18" r="3"/><circle cx="107" cy="12" r="3"/></g>
+    <g class="acc acc-shield"><path d="M139 119l20 8v18c0 15-8 27-20 34-12-7-20-19-20-34v-18z"/><path d="M131 145l7 7 11-16"/></g>
+    <g class="acc acc-antenna"><path d="M132 43q20-20 27-2"/><circle cx="160" cy="40" r="5"/></g>
+  </svg>
+</div>
