@@ -1,0 +1,5 @@
+Flask>=3.0,<4
+requests>=2.31,<3
+waitress>=3.0,<4
+Pillow>=10.0,<13
+tomli>=2.0,<3; python_version < "3.11"

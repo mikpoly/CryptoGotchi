@@ -1,0 +1,21 @@
+CryptoGotchi v0.7.3 Community Connectivity - installation
+
+WINDOWS POWERSHELL
+1. cd "$HOME\Downloads"
+2. Get-FileHash ".\CryptoGotchi-by-mikpoly-v0.7.3-community-connectivity.zip" -Algorithm SHA256
+3. scp ".\CryptoGotchi-by-mikpoly-v0.7.3-community-connectivity.zip" mikpoly@cryptogotchi.local:/home/mikpoly/
+4. ssh mikpoly@cryptogotchi.local
+
+RASPBERRY PI
+1. cd /home/mikpoly
+2. sudo apt update
+3. sudo apt install -y unzip
+4. rm -rf CryptoGotchi-by-mikpoly
+5. unzip CryptoGotchi-by-mikpoly-v0.7.3-community-connectivity.zip
+6. cd CryptoGotchi-by-mikpoly
+7. sudo bash scripts/install.sh
+8. sudo systemctl status cryptogotchi --no-pager -l
+9. curl -s http://127.0.0.1:8080/health ; echo
+10. sudo reboot
+
+Dashboard : http://cryptogotchi.local:8080

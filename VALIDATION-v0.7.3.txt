@@ -1,0 +1,19 @@
+CryptoGotchi v0.7.3 Community Connectivity
+
+Validation locale de construction :
+- compilation Python : OK
+- syntaxe install.sh : OK
+- syntaxe helper Bluetooth/Wi-Fi : OK
+- syntaxe watchdog de connectivité : OK
+- parsing Jinja des templates : OK
+- tests pytest : 71 réussis, 1 ignoré
+- test ignoré : Flask absent de l’environnement de construction
+- analyse technique JSON et breakout : OK
+- détection de route Wi-Fi avec PAN en secours : OK
+- distinction BlueZ connecté / PAN actif : OK
+- garde-fou de coupure Wi-Fi présent : OK
+
+À valider sur matériel réel :
+- reconnexion après redémarrage du téléphone selon Android/iOS ;
+- LCD Waveshare réel ;
+- portée Bluetooth et alimentation USB du véhicule.
