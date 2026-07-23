@@ -702,16 +702,8 @@ def create_app(config_path: str | None = None, data_dir: str | None = None, star
                     "manual_message_hold_seconds": max(15, min(900, _int("manual_message_hold_seconds", 120))),
                     "max_analysis_assets": max(1, min(5, _int("max_analysis_assets", 5))),
                 })
-                current.setdefault("ranking", {}).update({
-                    "enabled": _bool("ranking_enabled"),
-                    "endpoint_url": request.form.get("ranking_endpoint_url", "").strip(),
-                    "public_name": request.form.get("ranking_public_name", "").strip()[:40],
-                    "sync_interval_hours": max(1, min(168, _int("ranking_sync_interval_hours", 6))),
-                    "share_country": _bool("ranking_share_country"),
-                    "country_code": request.form.get("ranking_country_code", "").strip().upper()[:2],
-                })
-                if request.form.get("ranking_api_token", "").strip():
-                    current["ranking"]["api_token"] = request.form["ranking_api_token"].strip()
+                # Ranking settings are managed by the dedicated /ranking/toggle route.
+                # The normal Settings form must never erase the private server URL or token.
                 current["display"].update({
                     "type": request.form.get("display_type", "waveshare_lcd_1in44"),
                     "waveshare_model": request.form.get("waveshare_model", "epd2in13_V4").strip(),
@@ -819,6 +811,55 @@ def create_app(config_path: str | None = None, data_dir: str | None = None, star
             error = results[0].get("error") if results else "Channel disabled or incomplete"
             flash((f"{channel} test failed: {error}" if language() == "en" else f"Échec du test {channel} : {error}"), "error")
         return redirect(url_for("notifications"))
+
+    @app.post("/ranking/toggle")
+    @login_required
+    def ranking_toggle():
+        enabled = request.form.get("state") == "on"
+        public_name = request.form.get("ranking_public_name", "").strip()[:40]
+        share_country = _bool("ranking_share_country")
+        country_code = request.form.get("ranking_country_code", "").strip().upper()[:2]
+
+        def update(current):
+            ranking = current.setdefault("ranking", {})
+            ranking["enabled"] = enabled
+            ranking["public_name"] = public_name
+            ranking["share_country"] = share_country
+            ranking["country_code"] = country_code if share_country else ""
+            ranking.setdefault("sync_interval_hours", 6)
+            # endpoint_url and api_token are deliberately preserved. They are
+            # configured by the project owner/server deployment, never exposed
+            # in the public dashboard.
+
+        config_manager.update(update)
+        worker.display.wake()
+
+        current = config_manager.load()
+        endpoint = str(current.get("ranking", {}).get("endpoint_url", "") or "").strip()
+        if not enabled:
+            flash(
+                "Participation au classement désactivée."
+                if language() == "fr"
+                else "Community ranking participation disabled.",
+                "success",
+            )
+            return redirect(url_for("settings"))
+
+        if not endpoint:
+            flash(
+                "Classement activé localement. La synchronisation démarrera automatiquement dès que le serveur communautaire sera configuré."
+                if language() == "fr"
+                else "Ranking enabled locally. Synchronization will start automatically when the community server is configured.",
+                "success",
+            )
+            return redirect(url_for("settings"))
+
+        result = worker.ranking.sync(worker.status(), force=True)
+        if result.get("ok"):
+            flash(tr("flash.ranking_ok"), "success")
+        else:
+            flash(tr("flash.ranking_fail", error=result.get("error", "unknown error")), "error")
+        return redirect(url_for("settings"))
 
     @app.post("/ranking/test")
     @login_required
