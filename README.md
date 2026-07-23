@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="./cryptogotchi/logo.png" alt="CryptoGotchi logo" width="180">
+  <img src="./cryptogotchi/logo.png" alt="CryptoGotchi logo" width="120">
 </p> 
 
 # CryptoGotchi by mikpoly
