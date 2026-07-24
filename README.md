@@ -9,9 +9,9 @@ CryptoGotchi is a community-driven market-tracking companion for Raspberry Pi Ze
 
 Created by mikpoly:
 
-GitHub: https://github.com/mikpoly/CryptoGotchi
-
-X / Twitter: https://x.com/m_mikpoly
+- Web : cryptogotchi.world
+- GitHub: https://github.com/mikpoly/CryptoGotchi
+- X / Twitter: https://x.com/m_mikpoly
 
 CryptoGotchi is an open-source community project. Fixes, translations, tests, ideas and improvements can be submitted through Pull Requests.
 
@@ -180,7 +180,7 @@ See CONTRIBUTING.md, .github/PULL_REQUEST_TEMPLATE.md, docs/BLUETOOTH_FAILOVER_F
 CryptoGotchi est un compagnon communautaire de suivi de marché pour **Raspberry Pi Zero 2 W** avec écran **Waveshare LCD 1,44 pouce**.
 
 Créé par **mikpoly** :
-
+- siteweb : cryptogotchi.world
 - GitHub : https://github.com/mikpoly/CryptoGotchi
 - X / Twitter : https://x.com/m_mikpoly
 
