@@ -9,7 +9,7 @@ CryptoGotchi is a community-driven market-tracking companion for Raspberry Pi Ze
 
 Created by mikpoly:
 
-- Web : cryptogotchi.world
+- Web: https://cryptogotchi.world
 - GitHub: https://github.com/mikpoly/CryptoGotchi
 - X / Twitter: https://x.com/m_mikpoly
 
